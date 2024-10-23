@@ -1,0 +1,37 @@
+body {
+    text-align: center;
+    background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+}
+
+canvas {
+    background-color: #000;
+    display: block;
+    margin: 20px auto;
+    border: 1px solid #fff;
+}
+
+#scoreBoard, #livesBoard, #levelBoard, #timerBoard {
+    margin-top: 10px;
+    font-size: 20px;
+}
+
+#gameOverScreen {
+    margin-top: 20px;
+}
+
+.explosion {
+    position: absolute;
+    background-color: rgba(255, 255, 0, 0.8);
+    border-radius: 50%;
+    animation: explosionAnimation 0.5s forwards;
+}
+
+@keyframes explosionAnimation {
+    0% { transform: scale(1); }
+    100% { transform: scale(3); opacity: 0; }
+}
+
+#difficultySelection {
+    margin: 20px;
+}

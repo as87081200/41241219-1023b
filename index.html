@@ -1,0 +1,256 @@
+<!DOCTYPE html> 
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打磚塊遊戲</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        canvas {
+            border: 1px solid #000;
+            display: block;
+        }
+
+        #scoreBoard, #livesBoard, #levelBoard {
+            margin: 5px;
+            font-size: 20px;
+        }
+
+        #gameOverScreen, #nextLevelScreen {
+            display: none; /* 隱藏結束和下一關畫面 */
+            text-align: center;
+        }
+
+        #difficultySelection {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="difficultySelection">
+        <h2>選擇遊戲難度</h2>
+        <button onclick="startGame('easy')">簡單</button>
+        <button onclick="startGame('medium')">中等</button>
+        <button onclick="startGame('hard')">困難</button>
+    </div>
+
+    <div id="gameCanvasContainer" style="display: none;">
+        <canvas id="gameCanvas" width="480" height="320"></canvas>
+        <div id="scoreBoard">分數: 0</div>
+        <div id="livesBoard">生命: 3</div>
+        <div id="levelBoard">關卡: 1</div>
+    </div>
+
+    <div id="gameOverScreen">
+        <h2>遊戲結束!</h2>
+        <p id="finalScore">你的分數: 0</p>
+        <button onclick="returnToDifficulty()">返回選擇難度</button>
+        <button onclick="restartGame()">重新開始</button>
+    </div>
+
+    <div id="nextLevelScreen">
+        <h2>恭喜通過關卡!</h2>
+        <button onclick="nextLevel()">前往下一關</button>
+    </div>
+
+    <audio id="bgMusic" src="background.mp3" loop></audio>
+    <audio id="hitSound" src="hit.mp3"></audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let ballRadius = 10;
+        let x, y, dx, dy;
+        let paddleHeight = 10;
+        let paddleWidth = 75;
+        let paddleX;
+        let bricks = [];
+        let score = 0;
+        let lives = 3;
+        let gameRunning = false;
+        let difficulty;
+        let level = 1;
+
+        const brickRowCount = 5;
+        const brickColumnCount = 6; // 6列，使左右方塊填滿
+
+        const brickColors = ['#FF5733', '#33FF57', '#3357FF', '#F1C40F', '#8E44AD']; // 每層磚塊的顏色
+
+        // 調整磚塊的寬度和高度
+        const brickWidth = 60; // 新的磚塊寬度
+        const brickHeight = 15; // 新的磚塊高度
+
+        function initBricks() {
+            bricks = [];
+            for (let c = 0; c < brickColumnCount; c++) {
+                bricks[c] = [];
+                for (let r = 0; r < brickRowCount; r++) {
+                    bricks[c][r] = { x: c * (brickWidth + 10) + 30, y: r * (brickHeight + 10) + 30, status: 1, color: brickColors[r] };
+                }
+            }
+        }
+
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status === 1) {
+                        ctx.fillStyle = bricks[c][r].color; // 使用不同顏色
+                        ctx.fillRect(bricks[c][r].x, bricks[c][r].y, brickWidth, brickHeight);
+                    }
+                }
+            }
+        }
+
+        function drawBall() {
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPaddle() {
+            ctx.fillStyle = '#0095DD';
+            ctx.fillRect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawBall();
+            drawPaddle();
+            document.getElementById('scoreBoard').innerHTML = `分數: ${score}`;
+            document.getElementById('livesBoard').innerHTML = `生命: ${lives}`;
+            document.getElementById('levelBoard').innerHTML = `關卡: ${level}`;
+
+            // 邊界檢查
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+            }
+            if (y + dy < ballRadius) {
+                dy = -dy;
+            } else if (y + dy > canvas.height - ballRadius) {
+                if (x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                } else {
+                    lives--;
+                    if (!lives) {
+                        gameOver();
+                    } else {
+                        resetBall();
+                    }
+                }
+            }
+
+            x += dx;
+            y += dy;
+
+            // 碰到磚塊的邏輯
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    let brick = bricks[c][r];
+                    if (brick.status === 1 && x > brick.x && x < brick.x + brickWidth && y > brick.y && y < brick.y + brickHeight) {
+                        dy = -dy;
+                        brick.status = 0; // 磚塊被擊破
+                        score++;
+                        if (score === brickRowCount * brickColumnCount) {
+                            nextLevel();
+                        }
+                    }
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        function resetBall() {
+            x = canvas.width / 2;
+            y = canvas.height - 30;
+            dx = 2;
+            dy = -2;
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').innerHTML = `你的分數: ${score}`;
+            document.getElementById('gameOverScreen').style.display = 'block';
+            document.getElementById('gameCanvasContainer').style.display = 'none';
+        }
+
+        function startGame(selectedDifficulty) {
+            difficulty = selectedDifficulty;
+            document.getElementById('difficultySelection').style.display = 'none';
+            document.getElementById('gameCanvasContainer').style.display = 'block';
+            paddleX = (canvas.width - paddleWidth) / 2; // 擋板初始位置
+            initBricks();
+            resetBall();
+            score = 0;
+            lives = 3;
+            level = 1;
+            gameRunning = true;
+            draw();
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            startGame(difficulty);
+        }
+
+        function nextLevel() {
+            level++;
+            initBricks();
+            resetBall();
+            document.getElementById('nextLevelScreen').style.display = 'none';
+            draw();
+        }
+
+        function returnToDifficulty() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('difficultySelection').style.display = 'flex';
+            // 重置遊戲狀態
+            score = 0;
+            lives = 3;
+            level = 1;
+        }
+
+        // 使用滑鼠控制擋板
+        canvas.addEventListener('mousemove', function(event) {
+            const relativeX = event.clientX - canvas.getBoundingClientRect().left;
+            // 限制擋板不超過邊界
+            if (relativeX > 0 && relativeX < canvas.width) {
+                paddleX = Math.max(0, Math.min(relativeX - paddleWidth / 2, canvas.width - paddleWidth));
+            }
+        });
+
+        // 使用鍵盤控制擋板
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowRight' || event.key === 'd') {
+                paddleX = Math.min(paddleX + 20, canvas.width - paddleWidth); // 右移
+            } else if (event.key === 'ArrowLeft' || event.key === 'a') {
+                paddleX = Math.max(paddleX - 20, 0); // 左移
+            }
+        });
+
+        // 初始化遊戲
+        resetBall();
+    </script>
+</body>
+</html>
